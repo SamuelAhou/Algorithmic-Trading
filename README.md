@@ -76,7 +76,7 @@ strategy.plot()
 
 ```
 
-Here is a sample output from the `SMA.py` strategy (in `scripts/strategies`) with short/long MA of 20 and 100 days:
+Here is a sample output from the `SMA.py` strategy (in `scripts/strategies`) with short/long MA of 20 and 100 days on Apple stock from 2010 to 2020:
 
 
 <img src="results/SMA/SMA%20Strategy.png" alt="drawing" width="800"/>
