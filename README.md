@@ -30,6 +30,8 @@ To use the framework, follow these steps:
 3. Backtest the strategy using the `run` function defined in the `Strategy` class.
 4. Visualize the results using the `plot` function defined in the `Strategy` class.
 
+You can find multiple metrics in the attribute `metrics` of the strategy object after running the backtest.
+
 ### Example
 
 Here is an example of how to use the framework:
