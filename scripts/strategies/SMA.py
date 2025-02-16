@@ -6,8 +6,8 @@ from rich.progress import track
 
 class SMAStrategy(Strategy):
 
-    def __init__(self, name, data, params):
-        super().__init__(name, data, params)
+    def __init__(self, name, data, params, init_cash):
+        super().__init__(name, data, params, init_cash)
         self.short_window = params['short_window']
         self.long_window = params['long_window']
         self.order_size = params['order_size']
@@ -20,20 +20,20 @@ class SMAStrategy(Strategy):
 
         self.signals['long'] = 0
         self.signals['short'] = 0
-        self.signals['exit'] = 0
+        self.signals['exits'] = 0
 
         self.signals.loc[self.data.index[self.short_window:], 'long'] = np.where(self.signals.loc[self.data.index[self.short_window:], 'short_mavg'] > 
                                                                                  self.signals.loc[self.data.index[self.short_window:], 'long_mavg'], 1, 0)
-        self.signals['long'] = self.signals['long'].diff()
+        self.signals['long'] = np.where(self.signals['long'].diff() == 1, 1, 0)
         self.signals.loc[self.data.index[self.short_window:], 'short'] = np.where(self.signals.loc[self.data.index[self.short_window:], 'short_mavg'] < 
                                                                                   self.signals.loc[self.data.index[self.short_window:], 'long_mavg'], -1, 0)
-        self.signals['short'] = self.signals['short'].diff()
+        self.signals['short'] = np.where(self.signals['short'].diff() == -1, -1, 0)
 
         self.signals['positions'] = self.signals['long'] + self.signals['short']
 
+
         entries = self.signals.index[self.signals['positions'] != 0].tolist()
         for entry in track(entries, description='Generating Signals ...'):
-
             # Remember entry prices for long and short positions
             if self.signals['positions'].loc[entry] == 1:
                 long_entry_price = self.data['Close'].loc[entry]
@@ -51,7 +51,7 @@ class SMAStrategy(Strategy):
                 if next_short_signal < long_exit_idx:
                     long_exit_idx = next_short_signal
 
-                self.signals['exit'].loc[long_exit_idx] = 1
+                self.signals.loc[long_exit_idx, 'exits'] = 1
 
             elif self.signals['positions'].loc[entry] == -1:
                 short_entry_price = self.data['Close'].loc[entry]
@@ -65,20 +65,21 @@ class SMAStrategy(Strategy):
                 if next_long_signal < short_exit_idx:
                     short_exit_idx = next_long_signal
                 
-                self.signals.loc[short_exit_idx, 'exit'] = 1
+                self.signals.loc[short_exit_idx, 'exits'] = 1
 
+        self.signals.drop(['long', 'short'], axis=1, inplace=True)
 
     def generate_positions(self):
-        
-        for i in track(range(1, len(self.signals)), description='Generating Positions ...'):
-            if self.signals['positions'].iloc[i] == 1: 
-                self.positions.loc[self.data.index[i], (self.assets[0], 'position')] += self.order_size
-                self.positions.loc[self.data.index[i], (self.assets[0], 'order_size')] = self.order_size
-            elif self.signals['positions'].iloc[i] == -1:
-                self.positions.loc[self.data.index[i], (self.assets[0], 'position')] -= self.order_size
-                self.positions.loc[self.data.index[i], (self.assets[0], 'order_size')] = -self.order_size
-            elif self.signals['exit'].iloc[i] == 1:
-                self.positions.loc[self.data.index[i], (self.assets[0], 'position')] = 0
-                self.positions.loc[self.data.index[i], (self.assets[0], 'order_size')] = 0
 
-        
+        print('Generating Positions ...')
+
+        buys = self.signals['positions'] == 1
+        sells = self.signals['positions'] == -1
+        exits = self.signals['exits'] == 1
+
+        self.positions.loc[buys, (self.assets[0], 'order_size')] = self.order_size
+        self.positions.loc[sells, (self.assets[0], 'order_size')] = -self.order_size
+        self.positions.loc[exits, (self.assets[0], 'position')] = 0
+        self.positions.loc[exits, (self.assets[0], 'order_size')] = -self.positions.loc[exits, (self.assets[0], 'position')]
+
+        self.positions[(self.assets[0], 'position')] = self.positions[(self.assets[0], 'order_size')].cumsum()

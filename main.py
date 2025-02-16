@@ -15,10 +15,10 @@ if __name__ == '__main__':
     params_sma = {
         'short_window': 20,
         'long_window': 100,
-        'order_size': 1
+        'order_size': 1.0
     }
 
-    sma_strategy = SMAStrategy('SMA_20-100', data, params_sma)
+    sma_strategy = SMAStrategy('SMA_20-100', data, params_sma, init_cash=1.0)
     sma_strategy.run()
     sma_strategy.evaluate()
     sma_strategy.plot('/Users/Samuel/Documents/Projects/Algorithmic-Trading/results')

@@ -1,7 +1,7 @@
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from rich.progress import track
-
 
 """
 Strategy class is the parent class for all strategies. It contains the basic
@@ -64,7 +64,7 @@ Methods:
 
 class Strategy:
 
-    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float=100_000):
+    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float):
         """
         Initializes the strategy with the given name and data.
 
@@ -91,11 +91,14 @@ class Strategy:
         positions_index = pd.MultiIndex.from_product(positions_iter)
         self.positions = pd.DataFrame(index=self.data.index, columns=positions_index)
 
+        with pd.option_context("future.no_silent_downcasting", True):
+            self.positions = self.positions.fillna(0.0).infer_objects(copy=False)
+
         pnl_cols = ['cash', 'pnl', 'returns'] 
         self.pnl = pd.DataFrame(index=self.data.index, columns=pnl_cols)
         self.pnl['cash'] = self.init_cash
-        self.pnl['pnl'] = 0
-        self.pnl['returns'] = 0
+        self.pnl['pnl'] = 0.0
+        self.pnl['returns'] = 0.0
 
         self.metrics = {}
 
@@ -140,11 +143,11 @@ class Strategy:
                 order_size = self.positions.loc[idx_prev, (asset, 'order_size')]
                 position = self.positions.loc[idx_prev, (asset, 'position')]
 
-                # Update cash
-                self.pnl.loc[idx, 'cash'] -= order_size * self.data['Close'][asset].loc[idx]
-
                 # Update pnl
                 self.pnl.loc[idx, 'pnl'] += position * (self.data['Close'][asset].loc[idx] - self.data['Close'][asset].loc[idx_prev])
+
+                # Update cash
+                self.pnl.loc[idx, 'cash'] += self.pnl.loc[idx, 'pnl']
 
         # Compute returns
         self.pnl['returns'] = self.pnl['cash'].pct_change(fill_method=None)
@@ -170,30 +173,29 @@ class Strategy:
 
         print('Evaluating Strategy...')
 
-        pnl = self.pnl['pnl']
-        returns = pnl.pct_change(fill_method=None)
-        returns = returns.dropna()
+        # pnl = self.pnl['pnl']
+        # returns = np.where(pnl.shift(1) != 0, pnl / pnl.shift(1) - 1, 0)
+        # returns = pd.Series(returns, index=self.data.index)
+        # returns = returns.dropna()
+
+        # Compute Returns when the position is not 0
+
+        invested_idx = self.positions.loc[:, (slice(None), 'position')] != 0
+        invested_idx = invested_idx.any(axis=1)
+        
+        returns = self.pnl['returns'][invested_idx]
 
         # Sharpe ratio
-        self.metrics['sharpe_ratio'] = returns.mean() / returns.std()
+        self.metrics['sharpe_ratio'] = np.sqrt(len(invested_idx)) * self.pnl['pnl'].mean()/self.pnl['pnl'].std()
 
         # Maximum
-        max_drawdown = (self.pnl['returns'].cumsum() - 
-                        self.pnl['returns'].cumsum().cummax())/self.pnl['returns'].cumsum().cummax()
-        self.metrics['max_drawdown'] = max_drawdown.min()
+        self.metrics['max_drawdown'] = 100 * (self.pnl['cash'] - self.pnl['cash'].cummax()).min() / self.pnl['cash'].cummax().max()
 
-        # Annualized return
-        self.metrics['annualized_return'] = returns.mean() * 252
-        
+        # Yearly return
+        self.metrics['yearly_return'] = 100 * ((self.pnl['cash'].iloc[-1] / self.pnl['cash'].iloc[0]) ** (252 / len(self.data)) - 1)
+
         # Annualized volatility
         self.metrics['annualized_volatility'] = returns.std() * (252 ** 0.5)
-
-        # Calmar ratio
-        self.metrics['calmar_ratio'] = self.metrics['annualized_return'] / abs(max_drawdown)
-
-        # Sortino ratio
-        self.metrics['average_loss'] = returns[returns < 0].mean()
-        self.metrics['sortino_ratio'] = (self.metrics['annualized_return'] - 0) / self.metrics['average_loss']
 
         # Average return
         self.metrics['average_return'] = returns.mean()
@@ -242,17 +244,18 @@ class Strategy:
         
 
         fig = plt.figure(figsize=(15, 15))
-        gs = fig.add_gridspec(4, 1, width_ratios = [1], height_ratios=[4, 1, 4, 4])
+        gs = fig.add_gridspec(5, 1, width_ratios = [1], height_ratios=[4, 1, 4, 1, 4])
 
         ax = []
         ax.append(fig.add_subplot(gs[0, 0]))
         ax.append(fig.add_subplot(gs[1, 0], sharex=ax[0]))
         ax.append(fig.add_subplot(gs[2, 0], sharex=ax[0]))
         ax.append(fig.add_subplot(gs[3, 0], sharex=ax[0]))
+        ax.append(fig.add_subplot(gs[4, 0], sharex=ax[0]))
 
-        title = self.name + ' - ' + 'Sharpe = ' + str(self.metrics['sharpe_ratio']) + \
-                ', ' + 'Max Drawdown = ' + str(self.metrics['max_drawdown']) + \
-                ', ' + 'Annualized Return = ' + str(self.metrics['annualized_return'])
+        title = self.name + '\n' + 'Sharpe = ' + str(round(self.metrics['sharpe_ratio'], 2)) + \
+                ', ' + 'Max Drawdown = ' + str(round(self.metrics['max_drawdown'], 2)) + '\%' + \
+                ', ' + 'Yearly Return = ' + str(round(self.metrics['yearly_return'], 2)) + '\%'
         
         # Plot close prices
         ax[0].plot(self.data.loc[start_date:end_date, ('Close', slice(None))])
@@ -280,9 +283,15 @@ class Strategy:
         ax[3].legend(self.assets)
         ax[3].grid()
 
+        # Plot pnl
+        ax[4].plot(self.pnl.loc[start_date:end_date, 'cash'])
+        ax[4].set_ylabel('Portfolio Value')
+        ax[4].grid()
+
         plt.setp(ax[0].get_xticklabels(), visible=False)
         plt.setp(ax[1].get_xticklabels(), visible=False)
         plt.setp(ax[2].get_xticklabels(), visible=False)
+        plt.setp(ax[3].get_xticklabels(), visible=False)
 
         plt.savefig(dir_path + '/' + self.name + '.pdf')
         plt.close()
@@ -316,4 +325,3 @@ class Strategy:
         self.signals = pd.read_csv(path + '/signals.csv', index_col=0)
         self.positions = pd.read_csv(path + '/positions.csv', index_col=0)
         self.pnl = pd.read_csv(path + '/pnl.csv', index_col=0)
-    
