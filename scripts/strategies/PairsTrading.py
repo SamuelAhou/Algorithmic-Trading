@@ -1,4 +1,4 @@
-from src.strategy import Strategy
+from ..src.strategy import Strategy
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
@@ -43,10 +43,6 @@ class PairsTrading(Strategy):
 
 
     def generate_positions(self):
-
-        positions_iter = [self.assets, ['position', 'order_size']]
-        positions_index = pd.MultiIndex.from_product(positions_iter)
-        self.positions = pd.DataFrame(index=self.data.index, columns=positions_index)
 
         for i in range(1, len(self.signals)):
             # Asset 1 overperforms Asset 2 -> Short Asset 1, Long Asset 2
