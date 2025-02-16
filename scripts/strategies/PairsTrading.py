@@ -6,7 +6,7 @@ import statsmodels.api as sm
 
 class PairsTrading(Strategy):
 
-    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float):
+    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float= 100_000.0):
         super().__init__(name, data, params, init_cash)
         
         assert type(params['entry_threshold']) == float and type(params['exit_threshold']) == float
@@ -18,7 +18,7 @@ class PairsTrading(Strategy):
 
         assert params['spread_type'] in ['zscore', 'ratio', 'log-difference']
         self.spread_type = params['spread_type']
-        
+
         self.assets = data.columns
 
     def generate_signals(self):

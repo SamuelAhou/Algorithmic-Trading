@@ -6,7 +6,7 @@ from rich.progress import track
 
 class SMAStrategy(Strategy):
 
-    def __init__(self, name, data, params, init_cash):
+    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float= 100_000.0):
         super().__init__(name, data, params, init_cash)
 
         assert type(params['short_window']) == int and type(params['long_window']) == int

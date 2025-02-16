@@ -64,7 +64,7 @@ Methods:
 
 class Strategy:
 
-    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float):
+    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float=100_000.0):
         """
         Initializes the strategy with the given name and data.
 
@@ -78,9 +78,22 @@ class Strategy:
             None
         """
 
+        assert 'Open' in data.columns.get_level_values(0)
+        assert 'High' in data.columns.get_level_values(0)
+        assert 'Low' in data.columns.get_level_values(0)
+        assert 'Close' in data.columns.get_level_values(0)
+        assert 'Volume' in data.columns.get_level_values(0)
+
+        assert type(name) == str
         self.name = name
+
+        assert type(data) == pd.DataFrame
         self.data = data
+
+        assert type(params) == dict
         self.params = params
+
+        assert type(init_cash) == float
         self.init_cash = init_cash
 
         self.assets = self.data.columns.get_level_values(1).unique()
@@ -215,7 +228,7 @@ class Strategy:
     def plot(self, dir_path: str, start_date=None, end_date=None):
         """
         Plots the assets' close prices, volume, signals, positions and pnl.
-        Saves the plot to dir_path/{self.name}.pdf file.
+        Saves the plot to dir_path/{self.name} file as pdf and png.
         Args:
             dir_path (str): The directory path to save the plot.
             start_date (str, optional): The start date to plot. Defaults to self.data.index[0].
@@ -293,6 +306,7 @@ class Strategy:
         plt.setp(ax[3].get_xticklabels(), visible=False)
 
         plt.savefig(dir_path + '/' + self.name + '.pdf')
+        plt.savefig(dir_path + '/' + self.name + '.png')
         plt.close()
     
 

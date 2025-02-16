@@ -49,8 +49,8 @@ data = yf.download('AAPL', start='2010-01-01', end='2021-01-01')
 
 class SimpleMovingAverage(Strategy):
 
-    def __init__(self, name, data, params):
-        super().__init__(data)
+    def __init__(self, name: str, data: pd.DataFrame, params: dict, init_cash: float = 100_000.0):
+        super().__init__(name, data, params, init_cash)
         self.short_window = params['short_window']
         self.long_window = params['long_window']
         self.signals = pd.DataFrame(index=data.index)
@@ -75,5 +75,17 @@ strategy.run()
 strategy.plot()
 
 ```
+
+Here is a sample output from the `SMA.py` strategy (in `scripts/strategies`) with short/long MA of 20 and 100 days:
+
+
+<img src="results/SMA/SMA%20Strategy.png" alt="drawing" width="800"/>
+
+
+
+
+
+
+
 
 
