@@ -1,6 +1,4 @@
 import pandas as pd
-from matplotlib import pyplot as plt
-import talib as ta
 
 """
 Strategy class is the parent class for all strategies. It contains the basic
@@ -13,12 +11,13 @@ Attributes:
     - data: pd.DataFrame 
         The data that the strategy will use to make decisions.
         Can contain multiple assets.
-        Should contain the following columns for each asset:
-            - 'open': The opening price of the asset.
-            - 'high': The highest price of the asset.
-            - 'low': The lowest price of the asset.
-            - 'close': The closing price of the asset.
-            - 'volume': The volume
+        Should contain the following columns:
+            - 'Open': The opening price of the asset.
+            - 'High': The highest price of the asset.
+            - 'Low': The lowest price of the asset.
+            - 'Close': The closing price of the asset.
+            - 'Volume': The volume
+        MultiIndex columns with the first level being the column names and the second level the assets.
     - params: dict
         The parameters of the strategy.
     - init_cash: float
@@ -81,8 +80,14 @@ class Strategy:
         self.params = params
         self.init_cash = init_cash
 
+        self.assets = self.data.columns.get_level_values(1).unique()
+
         self.signals = pd.DataFrame(index=self.data.index)
-        self.positions = pd.DataFrame(index=self.data.index)
+
+        positions_iter = [self.assets, ['position', 'order_size']]
+        positions_index = pd.MultiIndex.from_product(positions_iter)
+        self.positions = pd.DataFrame(index=self.data.index, columns=positions_index)
+
         self.pnl = pd.DataFrame(index=self.data.index)
 
 
