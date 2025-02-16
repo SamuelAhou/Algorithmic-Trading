@@ -1,4 +1,5 @@
 import pandas as pd
+import matplotlib.pyplot as plt
 
 """
 Strategy class is the parent class for all strategies. It contains the basic
@@ -88,7 +89,13 @@ class Strategy:
         positions_index = pd.MultiIndex.from_product(positions_iter)
         self.positions = pd.DataFrame(index=self.data.index, columns=positions_index)
 
-        self.pnl = pd.DataFrame(index=self.data.index)
+        pnl_cols = ['cash', 'pnl', 'returns'] 
+        self.pnl = pd.DataFrame(index=self.data.index, columns=pnl_cols)
+        self.pnl['cash'] = self.init_cash
+        self.pnl['pnl'] = 0
+        self.pnl['returns'] = 0
+
+        self.metrics = None
 
 
     def generate_signals(self):
@@ -113,28 +120,34 @@ class Strategy:
         raise NotImplementedError
 
 
-    def run(self) -> pd.DataFrame:
+    def run(self):
         """
         Runs the strategy and generates the pnl.
-
-        Returns:
-            pd.DataFrame: The profit and loss of the strategy.
         """
 
         self.generate_signals()
         self.generate_positions()
-
-        self.pnl['cash'] = self.init_cash
-        self.pnl['pnl'] = 0
-        self.pnl['returns'] = 0
         
         for i in range(1, len(self.data)):
-            self.pnl['cash'].iloc[i] = self.pnl['cash'].iloc[i-1] + self.positions['position'].iloc[i-1] * self.data['close'].iloc[i-1]
-            self.pnl['pnl'].iloc[i] = self.pnl['cash'].iloc[i] - self.init_cash
-            self.pnl['returns'].iloc[i] = self.pnl['cash'].iloc[i] / self.pnl['cash'].iloc[i-1] - 1
+            idx = self.data.index[i]
+            idx_prev = self.data.index[i-1]
 
-        return self.pnl
-    
+            self.pnl.loc[idx, 'cash'] = self.pnl.loc[idx_prev, 'cash']
+
+            for asset in self.assets:
+                order_size = self.positions.loc[idx_prev, (asset, 'order_size')]
+                position = self.positions.loc[idx_prev, (asset, 'position')]
+
+                # Update cash
+                self.pnl.loc[idx, 'cash'] -= order_size * self.data['Close'][asset].loc[idx]
+
+                # Update pnl
+                self.pnl.loc[idx, 'pnl'] += position * (self.data['Close'][asset].loc[idx] - self.data['Close'][asset].loc[idx_prev])
+
+        # Compute returns
+        self.pnl['returns'] = self.pnl['cash'].pct_change(fill_method=None)
+        self.pnl.loc[self.data.index[0], 'returns'] = 0
+            
 
     def evaluate(self) -> dict:
         """
@@ -151,21 +164,18 @@ class Strategy:
             - Win rate
             - Loss rate
             - Number of trades
-        
-        Returns:
-            dict: A dictionary containing the metrics.
         """
 
         pnl = self.pnl['pnl']
-        returns = pnl.pct_change()
+        returns = pnl.pct_change(fill_method=None)
         returns = returns.dropna()
 
         # Sharpe ratio
         sharpe_ratio = returns.mean() / returns.std()
 
         # Maximum
-        max_drawdown = 0
-        max_drawdown = (pnl / pnl.cummax() - 1).min()
+        max_drawdown = (self.pnl['returns'].cumsum() - 
+                        self.pnl['returns'].cumsum().cummax())/self.pnl['returns'].cumsum().cummax()
         max_drawdown = max_drawdown.min()
 
         # Annualized return
@@ -199,7 +209,7 @@ class Strategy:
         # Number of trades (Count changes in positions)
         number_of_trades = (self.positions['order_size'] != 0).sum()
 
-        return {
+        self.metrics = {
             'sharpe_ratio': sharpe_ratio,
             'max_drawdown': max_drawdown,
             'annualized_return': annualized_return,
@@ -215,14 +225,71 @@ class Strategy:
         }
     
 
-    def plot(self):
+    def plot(self, dir_path: str, start_date=None, end_date=None):
+        """
+        Plots the assets' close prices, volume, signals, positions and pnl.
+        Saves the plot to dir_path/{self.name}.pdf file.
+        Args:
+            dir_path (str): The directory path to save the plot.
+            start_date (str, optional): The start date to plot. Defaults to self.data.index[0].
+            end_date (str, optional): The end date to plot. Defaults to self.data.index[-1].
 
-        raise NotImplementedError
+        Returns:
+            None
+        """
+
+        if start_date is None:
+            start_date = self.data.index[0]
+        if end_date is None:
+            end_date = self.data.index[-1]
+        
+
+        fig = plt.figure(figsize=(15, 15))
+        gs = fig.add_gridspec(4, 1, width_ratios = [1], height_ratios=[4, 1, 4, 4])
+
+        ax = []
+        ax.append(fig.add_subplot(gs[0, 0]))
+        ax.append(fig.add_subplot(gs[1, 0], sharex=ax[0]))
+        ax.append(fig.add_subplot(gs[2, 0], sharex=ax[0]))
+        ax.append(fig.add_subplot(gs[3, 0], sharex=ax[0]))
+        
+        # Plot close prices
+        ax[0].plot(self.data.loc[start_date:end_date, ('Close', slice(None))])
+        ax[0].set_title(self.name)
+        ax[0].set_ylabel('Close Price')
+        ax[0].legend(self.assets)
+        ax[0].grid()
+
+        # Plot volume
+        for asset in self.assets:
+            ax[1].bar(self.data.loc[start_date:end_date].index, self.data.loc[start_date:end_date, ('Volume', asset)], color='blue', alpha=0.5)
+        ax[1].set_ylabel('Volume')
+        ax[1].legend(self.assets)
+        ax[1].grid()
+        
+        # Plot signals
+        ax[2].plot(self.signals.loc[start_date:end_date])
+        ax[2].set_ylabel('Signals')
+        ax[2].legend(self.signals.columns)
+        ax[2].grid()
+
+        # Plot positions
+        ax[3].plot(self.positions.loc[start_date:end_date, ('position', slice(None))])
+        ax[3].set_ylabel('Positions')
+        ax[3].legend(self.assets)
+        ax[3].grid()
+
+        plt.setp(ax[0].get_xticklabels(), visible=False)
+        plt.setp(ax[1].get_xticklabels(), visible=False)
+        plt.setp(ax[2].get_xticklabels(), visible=False)
+
+        plt.savefig(dir_path + '/' + self.name + '.pdf')
+        plt.close()
     
 
-    def save(self, path):
+    def save(self, dir_path):
         """
-        Saves the signals, positions and pnl to the given path.
+        Saves the signals, positions and pnl to the given path in CSV format.
 
         Args:
             path (str): The path to save the signals, positions and pnl.
@@ -230,9 +297,9 @@ class Strategy:
         Returns:
             None
         """
-        self.signals.to_csv(path + '/signals.csv')
-        self.positions.to_csv(path + '/positions.csv')
-        self.pnl.to_csv(path + '/pnl.csv')
+        self.signals.to_csv(dir_path + '/signals.csv')
+        self.positions.to_csv(dir_path + '/positions.csv')
+        self.pnl.to_csv(dir_path + '/pnl.csv')
 
     
     def load(self, path):
@@ -248,4 +315,29 @@ class Strategy:
         self.signals = pd.read_csv(path + '/signals.csv', index_col=0)
         self.positions = pd.read_csv(path + '/positions.csv', index_col=0)
         self.pnl = pd.read_csv(path + '/pnl.csv', index_col=0)
+    
+import yfinance as yf
+import pandas as pd
+
+data = yf.download('AAPL', start='2010-01-01', end='2021-01-01')
+
+class MyStrategy(Strategy):
+
+    def __init__(self, name: str, data: pd.DataFrame, params: dict):
+        super().__init__(name, data, params)
+
+    def generate_signals(self):
+        self.signals['signal'] = 0
+        self.signals.loc[self.data['Close']['AAPL'] > 100, 'signal'] = 1
+        self.signals.loc[self.data['Close']['AAPL'] < 100, 'signal'] = -1
+
+    def generate_positions(self):
+        self.positions['position'] = self.signals['signal']
+        self.positions['order_size'] = 100
+
+my_strategy = MyStrategy('MyStrategy', data, {})
+my_strategy.run()
+my_strategy.evaluate()
+
+my_strategy.plot('/Users/Samuel/Documents/Projects/Algorithmic-Trading/results')
     
