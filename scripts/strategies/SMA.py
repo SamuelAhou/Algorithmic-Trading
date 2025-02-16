@@ -8,8 +8,12 @@ class SMAStrategy(Strategy):
 
     def __init__(self, name, data, params, init_cash):
         super().__init__(name, data, params, init_cash)
+
+        assert type(params['short_window']) == int and type(params['long_window']) == int
         self.short_window = params['short_window']
         self.long_window = params['long_window']
+
+        assert type(params['order_size']) == float
         self.order_size = params['order_size']
         
 

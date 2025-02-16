@@ -70,7 +70,6 @@ class SimpleMovingAverage(Strategy):
 strategy = SimpleMovingAverage(data)
 
 strategy.run()
-
 strategy.plot()
 
 ```

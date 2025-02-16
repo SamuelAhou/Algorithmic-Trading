@@ -105,7 +105,7 @@ class Strategy:
 
     def generate_signals(self):
         """
-        Generates the signals for the strategy.
+        (TO BE IMPLEMENTED) Generates the signals useful for the strategy. 
         
         Returns:
             None
@@ -116,42 +116,13 @@ class Strategy:
 
     def generate_positions(self):
         """
-        Generates the positions for the strategy.
+        (TO BE IMPLEMENTED) Generates the positions taken by the strategy.
 
         Returns:
             None
         """
 
         raise NotImplementedError
-
-
-    def run(self):
-        """
-        Runs the strategy and generates the pnl.
-        """
-
-        self.generate_signals()
-        self.generate_positions()
-        
-        for i in track(range(1, len(self.data)), description= 'Running Strategy...'):
-            idx = self.data.index[i]
-            idx_prev = self.data.index[i-1]
-
-            self.pnl.loc[idx, 'cash'] = self.pnl.loc[idx_prev, 'cash']
-
-            for asset in self.assets:
-                order_size = self.positions.loc[idx_prev, (asset, 'order_size')]
-                position = self.positions.loc[idx_prev, (asset, 'position')]
-
-                # Update pnl
-                self.pnl.loc[idx, 'pnl'] += position * (self.data['Close'][asset].loc[idx] - self.data['Close'][asset].loc[idx_prev])
-
-                # Update cash
-                self.pnl.loc[idx, 'cash'] += self.pnl.loc[idx, 'pnl']
-
-        # Compute returns
-        self.pnl['returns'] = self.pnl['cash'].pct_change(fill_method=None)
-        self.pnl.loc[self.data.index[0], 'returns'] = 0
             
 
     def evaluate(self) -> dict:
@@ -172,11 +143,6 @@ class Strategy:
         """
 
         print('Evaluating Strategy...')
-
-        # pnl = self.pnl['pnl']
-        # returns = np.where(pnl.shift(1) != 0, pnl / pnl.shift(1) - 1, 0)
-        # returns = pd.Series(returns, index=self.data.index)
-        # returns = returns.dropna()
 
         # Compute Returns when the position is not 0
 
@@ -212,6 +178,39 @@ class Strategy:
         # Number of trades (Count changes in positions), sum over all assets
         self.metrics['number_of_trades'] = (self.positions.loc[:, (slice(None), 'order_size')] != 0).sum().sum()
     
+
+    def run(self):
+        """
+        Runs the strategy and generates the pnl.
+        Then runs `evaluate` method to compute some metrics to evaluate the strategy.
+        """
+
+        self.generate_signals()
+        self.generate_positions()
+        
+        for i in track(range(1, len(self.data)), description= 'Running Strategy...'):
+            idx = self.data.index[i]
+            idx_prev = self.data.index[i-1]
+
+            self.pnl.loc[idx, 'cash'] = self.pnl.loc[idx_prev, 'cash']
+
+            for asset in self.assets:
+                order_size = self.positions.loc[idx_prev, (asset, 'order_size')]
+                position = self.positions.loc[idx_prev, (asset, 'position')]
+
+                # Update pnl
+                self.pnl.loc[idx, 'pnl'] += position * (self.data['Close'][asset].loc[idx] - self.data['Close'][asset].loc[idx_prev])
+
+                # Update cash
+                self.pnl.loc[idx, 'cash'] += self.pnl.loc[idx, 'pnl']
+
+        # Compute returns
+        self.pnl['returns'] = self.pnl['cash'].pct_change(fill_method=None)
+        self.pnl.loc[self.data.index[0], 'returns'] = 0.0
+
+        # Evaluate the strategy
+        self.evaluate()
+
 
     def plot(self, dir_path: str, start_date=None, end_date=None):
         """
