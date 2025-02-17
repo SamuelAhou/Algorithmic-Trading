@@ -26,7 +26,7 @@ The framework is structured as follows:
 To use the framework, follow these steps:
 
 1. Download the historical data using **yfinance**.
-2. Create a new strategy by inheriting from the `Strategy` class. For that you need to implement the `generate_signals` method that generates the signals used by the strategy. Then, implement the `generate_positions` method that generates the positions based on the signals.
+2. Create a new strategy by inheriting from the `Strategy` class. For that you need to implement the `generate_signals` method that generates the signals used by the strategy. Then, implement the `generate_positions` method that defines the positions taken at each time step based on the signals.
 3. Backtest the strategy using the `run` function defined in the `Strategy` class.
 4. Visualize the results using the `plot` function defined in the `Strategy` class.
 
