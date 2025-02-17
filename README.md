@@ -18,7 +18,7 @@ The framework is structured as follows:
 - `data/`: Contains the data used for backtesting.
 - `scripts/src`: Contains the source code for the framework. In this directory, the following files are present:
   - `strategy.py`: Contains the base class for strategies. All strategies inherit from this class.
-- `scripts/strategies/`: Contains the strategies that can be backtested.
+- `scripts/strategies/`: Contains strategies that can be backtested.
 - `scripts/utils/`: Contains utility functions that are used in the framework.
 
 ### Usage
