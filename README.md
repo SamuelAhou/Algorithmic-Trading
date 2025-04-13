@@ -81,9 +81,10 @@ Here is a sample output from the `SMA.py` strategy (in `scripts/strategies`) wit
 
 <img src="results/SMA/SMA%20Strategy.png" alt="drawing" width="800"/>
 
+## License and Attribution
 
-
-
+This project is open-source.  
+If you use any part of this code in your own work, a mention or link back to this repository would be greatly appreciated.
 
 
 
